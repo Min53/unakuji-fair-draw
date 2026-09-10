@@ -1,0 +1,84 @@
+{
+  "name": "unakuji-fair-draw",
+  "version": "0.1.0",
+  "description": "Operational kuji-style (lottery box) fair draw engine: quantity-preserving uniform assignment, ticket reservations, entitlements, final-segment queue, atomic draw with idempotency, and a production PostgreSQL reference implementation.",
+  "license": "MIT",
+  "author": "YAHA",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Min53/unakuji-fair-draw.git"
+  },
+  "homepage": "https://github.com/Min53/unakuji-fair-draw#readme",
+  "bugs": {
+    "url": "https://github.com/Min53/unakuji-fair-draw/issues"
+  },
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./memory": {
+      "types": "./dist/adapters/memory.d.ts",
+      "require": "./dist/adapters/memory.js",
+      "default": "./dist/adapters/memory.js"
+    },
+    "./postgres": {
+      "types": "./dist/adapters/postgres/index.d.ts",
+      "require": "./dist/adapters/postgres/index.js",
+      "default": "./dist/adapters/postgres/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "db",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\" \"examples/**/*.ts\"",
+    "test:unit": "node --test --import tsx tests/unit/**/*.test.ts",
+    "test:postgres": "node --test --import tsx tests/postgres/**/*.test.ts",
+    "test": "npm run test:unit",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "peerDependencies": {
+    "pg": "^8.11.0"
+  },
+  "peerDependenciesMeta": {
+    "pg": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/pg": "^8.11.0",
+    "@typescript-eslint/eslint-plugin": "^7.16.0",
+    "@typescript-eslint/parser": "^7.16.0",
+    "eslint": "^8.57.0",
+    "pg": "^8.11.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
+  },
+  "keywords": [
+    "kuji",
+    "lottery",
+    "raffle",
+    "draw",
+    "fair-random",
+    "postgresql"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

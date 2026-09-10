@@ -1,0 +1,13 @@
+{
+  "name": "unakuji-fair-draw-consumer-example",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Proves unakuji-fair-draw works as an installed dependency (not just via relative source imports).",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "unakuji-fair-draw": "file:../../unakuji-fair-draw-0.1.0.tgz"
+  }
+}

@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: devpass
+          POSTGRES_DB: unakuji
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:devpass@localhost:55432/unakuji
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Apply PostgreSQL schema
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          for f in db/001_tables.sql db/002_functions.sql db/003_queue_functions.sql db/004_admin_functions.sql; do
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: PostgreSQL integration & concurrency tests
+        run: npm run test:postgres
+
+      - name: Pack and verify the standalone consumer example imports the built package
+        run: |
+          npm pack
+          cd examples/consumer
+          rm -rf node_modules package-lock.json
+          npm install
+          node index.js
