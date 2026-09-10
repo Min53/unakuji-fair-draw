@@ -47,8 +47,8 @@
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\" \"examples/**/*.ts\"",
-    "test:unit": "node --test --import tsx tests/unit/**/*.test.ts",
-    "test:postgres": "node --test --import tsx tests/postgres/**/*.test.ts",
+    "test:unit": "node --test --import tsx tests/unit/*.test.ts",
+    "test:postgres": "node --test --import tsx tests/postgres/*.test.ts",
     "test": "npm run test:unit",
     "prepublishOnly": "npm run clean && npm run build"
   },
