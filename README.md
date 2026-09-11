@@ -153,8 +153,15 @@ everyone else.
 Apply `db/001_tables.sql` through `db/004_admin_functions.sql` in order
 (plain SQL, no migration framework assumed) — see
 [`examples/postgres/README.md`](examples/postgres/README.md) for a
-docker-compose walkthrough. `db/005_roles.sql` (a least-privilege
-`unakuji_app` role) is optional.
+docker-compose walkthrough. `db/005_roles.sql` is optional but recommended:
+it splits access into a participant-facing `unakuji_app` role and an
+operator `unakuji_admin` role, with column-level grants that leave
+`tickets.prize_id` and `boxes.assignment_commitment` unwritable by either.
+The `kuji_*` functions do not check who is calling them — `p_actor` is an
+audit label, not a verified identity — so EXECUTE is the authorization, and
+that file is where it is decided. Note that Postgres grants EXECUTE to
+`PUBLIC` by default; `005_roles.sql` revokes it first, and a schema that
+skips this file leaves every function callable by every role.
 
 If you ever change a function's *parameter types* in your own fork/revision,
 `DROP FUNCTION` it first before re-creating it. `CREATE OR REPLACE FUNCTION`

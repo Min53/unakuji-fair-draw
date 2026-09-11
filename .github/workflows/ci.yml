@@ -52,18 +52,25 @@ jobs:
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"
           done
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE unakuji_app PASSWORD 'devpass';"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE unakuji_admin PASSWORD 'devpass';"
+          # The integration suite both creates boxes (operator) and draws from
+          # them (participant), so it runs as a login holding both roles. The
+          # participant-only connection is handed to roles.test.ts separately.
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE ROLE unakuji_ci LOGIN PASSWORD 'devpass'; GRANT unakuji_app, unakuji_admin TO unakuji_ci;"
 
       - name: Unit tests
         run: npm run test:unit
 
-      # Run the integration suite as the least-privilege role from 005_roles.sql,
-      # not as the superuser. Otherwise the grants in that file are never
-      # exercised: a grant that is too narrow to run the engine, or too wide to
-      # be worth documenting, would both pass unnoticed. tests/postgres/roles.test.ts
-      # covers the "too wide" half and skips itself when it sees a superuser.
-      - name: PostgreSQL integration & concurrency tests (as unakuji_app)
+      # Run the integration suite as the least-privilege roles from
+      # 005_roles.sql, not as the superuser. Otherwise the grants in that file
+      # are never exercised: a grant too narrow to run the engine, and one too
+      # wide to be worth documenting, would both pass unnoticed.
+      # tests/postgres/roles.test.ts covers the "too wide" half using
+      # APP_DATABASE_URL, and skips itself when either connection is a superuser.
+      - name: PostgreSQL integration & concurrency tests (as unakuji_app / unakuji_admin)
         env:
-          DATABASE_URL: postgresql://unakuji_app:devpass@localhost:55432/unakuji
+          DATABASE_URL: postgresql://unakuji_ci:devpass@localhost:55432/unakuji
+          APP_DATABASE_URL: postgresql://unakuji_app:devpass@localhost:55432/unakuji
         run: npm run test:postgres
 
       - name: Pack and verify the standalone consumer example imports the built package
