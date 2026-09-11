@@ -1,45 +1,37 @@
--- unakuji-fair-draw: optional least-privilege application roles.
+-- unakuji-fair-draw: least-privilege application roles.
 --
--- This file is optional — if your host project already manages its own DB
--- roles/credentials, skip it and just point your existing connection at
--- this schema; nothing else here depends on roles named exactly these.
+-- Optional in the sense that you may wire your own credentials instead, but
+-- the model here is the one the engine is designed around, and skipping it
+-- leaves every function callable by every role (see the REVOKE below).
 --
 -- Two roles, because two very different things talk to this schema:
 --
 --   unakuji_app    the participant-facing server: draws, reservations, queue
 --   unakuji_admin  operator tooling: creating, opening, pausing, canceling
 --
+-- Neither role is granted anything on any table. Not INSERT, not UPDATE, not
+-- even SELECT. The kuji_* functions in 002-004 are SECURITY DEFINER, so they
+-- run with their owner's rights and reach the tables themselves; the callers
+-- only ever hold EXECUTE.
+--
+-- That is the whole point of this file. While the functions ran as the caller,
+-- a role that could run kuji_draw() necessarily also held INSERT on
+-- payout_ledger and purchase_requests — and kuji_get_result() hands back
+-- purchase_requests.result verbatim, so that INSERT was a second, unaudited
+-- way to produce a result. No amount of narrowing the grants closed that:
+-- the privileges the functions needed *were* the intervention path. Granting
+-- EXECUTE and nothing else is what closes it. Now the only way to write a
+-- draw result is kuji_draw(), and the only way to read another participant's
+-- is not to.
+--
+-- Withholding SELECT matters too: tickets.prize_id for an undrawn ticket is
+-- exactly the information a participant must not have, and a role with blanket
+-- SELECT has it regardless of what the public API returns.
+--
 -- The kuji_* functions carry no authorization check of their own. p_actor is
--- a label written to audit_log, not an identity that is verified. That is a
--- deliberate boundary — this engine does not know who your users are — but it
--- means EXECUTE *is* the authorization, and it has to be granted like one.
---
--- Postgres grants EXECUTE on new functions to PUBLIC by default, so a schema
--- that only ever runs GRANT would leave every function callable by every
--- role. The REVOKE below is therefore the load-bearing line in this file:
--- without it, the participant-facing role can call kuji_cancel_box() and
--- kuji_create_box() no matter what else is written here.
---
--- Table grants are column-level for the same reason. Every state change goes
--- through the functions, and those functions only ever write the columns
--- listed below, so the columns that decide or attest a result are never
--- granted to anyone:
---
---   tickets.prize_id            -- which prize a ticket holds
---   tickets.box_id/ticket_no    -- which ticket a row *is*
---   boxes.assignment_commitment -- the fingerprint of the whole assignment
---   boxes.assignment_salt       -- and its salt
---   boxes.total_tickets         -- the size the commitment was taken over
---
--- They are written once, at box creation, by INSERT. After that neither role
--- can change them at all — not through a bug, not through a compromised
--- application process, not through an operator holding either credential.
--- Postgres refuses the statement before any trigger or function runs.
---
--- No DELETE is granted to either role: cancellation and voiding are status
--- changes, never row removal, so payout and audit history is not destructible
--- here. If you build an operator tool that purges old test boxes, grant DELETE
--- to a separate, more privileged role for that tool specifically.
+-- a label written to audit_log, not a verified identity — this engine does not
+-- know who your users are. So EXECUTE is the authorization, and the split
+-- below is where it is decided.
 
 DO $$
 BEGIN
@@ -52,18 +44,19 @@ BEGIN
 END
 $$;
 
+-- SECURITY DEFINER functions resolve unqualified names through the search_path
+-- pinned on each function (pg_catalog, public). Nobody but the owner may create
+-- objects in public, so that path cannot be shadowed. Postgres 15+ does this by
+-- default; the REVOKE keeps older servers honest.
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO unakuji_app, unakuji_admin;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO unakuji_app, unakuji_admin;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO unakuji_app, unakuji_admin;
 
--- Take back the default. Nothing below is meaningful until this has run.
---
--- Scoped to this engine's own functions on purpose: extensions install into
--- public too, and revoking EXECUTE on ALL FUNCTIONS takes pgcrypto's digest()
--- away from PUBLIC as well — which breaks kuji_reconcile(), since that is what
--- recomputes the assignment commitment. Looping over kuji_% also means a
--- function added later is covered by re-running this file, with no list here
--- to forget to update.
+-- Take back the default. Postgres grants EXECUTE on functions to PUBLIC, so
+-- without this every grant below is decoration and every role can call
+-- everything. Scoped to kuji_% on purpose: extensions install into public too,
+-- and revoking EXECUTE on ALL FUNCTIONS takes pgcrypto's digest() away as well,
+-- which breaks kuji_reconcile(). Looping also means a function added later is
+-- covered by re-running this file, with no list here to forget to update.
 DO $$
 DECLARE fn record;
 BEGIN
@@ -83,7 +76,7 @@ $$;
 -- unakuji_app — what a participant's request can reach.
 -- ---------------------------------------------------------------------------
 GRANT EXECUTE ON FUNCTION
-  kuji_public_box, kuji_audit,
+  kuji_public_box,
   kuji_draw, kuji_reserve_tickets, kuji_release_reservation, kuji_expire_reservations,
   kuji_issue_entitlement,
   kuji_join_queue, kuji_leave_queue, kuji_queue_status,
@@ -91,24 +84,15 @@ GRANT EXECUTE ON FUNCTION
   kuji_get_result, kuji_get_holder_results, kuji_reconcile
 TO unakuji_app;
 
-GRANT INSERT ON audit_log, purchase_requests, payout_ledger, last_one_awards,
-                queue_entries, entitlements
-  TO unakuji_app;
-
-GRANT UPDATE (status, updated_at, last_one_awarded)              ON boxes         TO unakuji_app;
-GRANT UPDATE (status, reserved_by, reserved_until, consumed_at)  ON tickets       TO unakuji_app;
-GRANT UPDATE (status, consumed_at, consumed_ticket_no)           ON entitlements  TO unakuji_app;
-GRANT UPDATE (status, turn_expires_at, updated_at)               ON queue_entries TO unakuji_app;
-
--- Deliberately absent from unakuji_app: INSERT on boxes, box_prizes and
--- tickets. Only kuji_create_box writes those, so a compromised participant
--- server cannot mint a new box or a new assignment to draw from.
+-- Deliberately absent: kuji_create_box and every box lifecycle function. A
+-- compromised participant server cannot mint a new assignment to draw from,
+-- nor cancel or close a box that is selling.
 
 -- ---------------------------------------------------------------------------
 -- unakuji_admin — operator tooling. Changes a box's lifecycle, never a result.
 -- ---------------------------------------------------------------------------
 GRANT EXECUTE ON FUNCTION
-  kuji_public_box, kuji_audit,
+  kuji_public_box,
   kuji_create_box,
   kuji_open_box, kuji_schedule_box_open, kuji_open_scheduled_boxes,
   kuji_pause_box, kuji_resume_box, kuji_cancel_box, kuji_close_box,
@@ -116,14 +100,8 @@ GRANT EXECUTE ON FUNCTION
   kuji_get_result, kuji_get_holder_results, kuji_reconcile
 TO unakuji_admin;
 
-GRANT INSERT ON boxes, box_prizes, tickets, audit_log TO unakuji_admin;
+-- Deliberately absent: kuji_draw and the reservation and queue functions. An
+-- operator account cannot draw on a participant's behalf.
 
-GRANT UPDATE (status, updated_at, sale_opens_at, last_one_awarded,
-              paused_at, pause_reason, ended_at, end_reason,
-              canceled_at, cancel_reason)                        ON boxes        TO unakuji_admin;
-GRANT UPDATE (status, voided_at, void_reason)                    ON entitlements TO unakuji_admin;
-
--- Deliberately absent from unakuji_admin: kuji_draw and the reservation and
--- queue functions. An operator account cannot draw on a participant's behalf.
-
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO unakuji_app, unakuji_admin;
+-- kuji_audit is not granted to anyone: it is called by the other functions,
+-- which reach it as their owner. Nothing should be writing audit rows directly.

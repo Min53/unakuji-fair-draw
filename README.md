@@ -150,18 +150,30 @@ everyone else.
 
 ## PostgreSQL reference implementation
 
-Apply `db/001_tables.sql` through `db/004_admin_functions.sql` in order
-(plain SQL, no migration framework assumed) — see
+Apply `db/001_tables.sql` through `db/005_roles.sql` in order (plain SQL, no
+migration framework assumed) — see
 [`examples/postgres/README.md`](examples/postgres/README.md) for a
-docker-compose walkthrough. `db/005_roles.sql` is optional but recommended:
-it splits access into a participant-facing `unakuji_app` role and an
-operator `unakuji_admin` role, with column-level grants that leave
-`tickets.prize_id` and `boxes.assignment_commitment` unwritable by either.
-The `kuji_*` functions do not check who is calling them — `p_actor` is an
-audit label, not a verified identity — so EXECUTE is the authorization, and
-that file is where it is decided. Note that Postgres grants EXECUTE to
-`PUBLIC` by default; `005_roles.sql` revokes it first, and a schema that
-skips this file leaves every function callable by every role.
+docker-compose walkthrough.
+
+The `kuji_*` functions are `SECURITY DEFINER` with a pinned `search_path`, so
+they reach the tables as their owner and callers never need table privileges
+of their own. `db/005_roles.sql` splits those callers into a participant-facing
+`unakuji_app` role and an operator `unakuji_admin` role and grants each nothing
+but EXECUTE — no INSERT, no UPDATE, not even SELECT.
+
+That is deliberate, and it is the reason the functions are `SECURITY DEFINER`.
+While they ran as the caller, a role able to run `kuji_draw()` necessarily also
+held INSERT on `payout_ledger` and `purchase_requests`, and `kuji_get_result()`
+returns `purchase_requests.result` verbatim — so that INSERT was a second,
+unaudited way to produce a draw result. The privileges the functions needed
+*were* the intervention path. Withholding SELECT matters for the same reason:
+`tickets.prize_id` for an undrawn ticket is exactly what a participant must not
+be able to read, whatever the public API returns.
+
+The functions do not check who is calling them — `p_actor` is an audit label,
+not a verified identity — so EXECUTE is the authorization. Note that Postgres
+grants EXECUTE to `PUBLIC` by default; `005_roles.sql` revokes it first, and a
+schema that skips this file leaves every function callable by every role.
 
 If you ever change a function's *parameter types* in your own fork/revision,
 `DROP FUNCTION` it first before re-creating it. `CREATE OR REPLACE FUNCTION`
