@@ -48,14 +48,22 @@ jobs:
       - name: Apply PostgreSQL schema
         run: |
           sudo apt-get update && sudo apt-get install -y postgresql-client
-          for f in db/001_tables.sql db/002_functions.sql db/003_queue_functions.sql db/004_admin_functions.sql; do
+          for f in db/001_tables.sql db/002_functions.sql db/003_queue_functions.sql db/004_admin_functions.sql db/005_roles.sql; do
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"
           done
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE unakuji_app PASSWORD 'devpass';"
 
       - name: Unit tests
         run: npm run test:unit
 
-      - name: PostgreSQL integration & concurrency tests
+      # Run the integration suite as the least-privilege role from 005_roles.sql,
+      # not as the superuser. Otherwise the grants in that file are never
+      # exercised: a grant that is too narrow to run the engine, or too wide to
+      # be worth documenting, would both pass unnoticed. tests/postgres/roles.test.ts
+      # covers the "too wide" half and skips itself when it sees a superuser.
+      - name: PostgreSQL integration & concurrency tests (as unakuji_app)
+        env:
+          DATABASE_URL: postgresql://unakuji_app:devpass@localhost:55432/unakuji
         run: npm run test:postgres
 
       - name: Pack and verify the standalone consumer example imports the built package
