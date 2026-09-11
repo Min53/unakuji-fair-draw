@@ -96,3 +96,20 @@ test('the participant role can draw, and cannot produce a result any other way',
   assert.equal(report.healthy, true, JSON.stringify(report.issues));
   assert.equal(report.commitmentOk, true);
 });
+
+test('createBox refuses an assignment that does not preserve the declared quantities', async () => {
+  // The operator role can call kuji_create_box — that is what it is for — so the
+  // check that the assignment is a permutation of the declared inventory has to
+  // live in the function, not in the caller that happens to have shuffled.
+  const id = `test-craft-${randomUUID()}`;
+  const crafted = Array.from({ length: 3 }, (_, i) => ({ ticketNo: i + 1, prizeId: 'B' }));
+
+  await assert.rejects(
+    () =>
+      pool.query(
+        `SELECT kuji_create_box($1, '[{"id":"A","quantity":2},{"id":"B","quantity":1}]'::jsonb, $2::jsonb, 'x', 'y', NULL, NULL, 0)`,
+        [id, JSON.stringify(crafted)],
+      ),
+    /does not preserve the declared prize quantities/,
+  );
+});

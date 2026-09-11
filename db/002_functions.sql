@@ -103,6 +103,31 @@ BEGIN
     RAISE EXCEPTION 'INVALID_INPUT: assignment length (%) does not match total prize quantity (%)', v_total, v_prize_total;
   END IF;
 
+  -- Quantity preservation is the first thing this engine claims, so the
+  -- database enforces it rather than trusting the caller to have shuffled.
+  -- Matching totals was not enough: an assignment that drops one prize and
+  -- doubles another has the same length and used to be accepted.
+  IF EXISTS (
+    SELECT 1
+      FROM (SELECT a->>'prizeId' AS prize_id, count(*)::int AS n
+              FROM jsonb_array_elements(p_assignment) a GROUP BY 1) got
+      FULL JOIN (SELECT p->>'id' AS prize_id, (p->>'quantity')::int AS n
+                   FROM jsonb_array_elements(p_prizes) p) want
+        ON want.prize_id = got.prize_id
+     WHERE got.n IS DISTINCT FROM want.n
+  ) THEN
+    RAISE EXCEPTION 'INVALID_INPUT: assignment does not preserve the declared prize quantities';
+  END IF;
+
+  -- ...and it has to cover every ticket exactly once. The tickets primary key
+  -- already rejects duplicates; this also rejects gaps, which would otherwise
+  -- leave a box whose total_tickets counts a ticket number nobody can draw.
+  IF (SELECT count(DISTINCT (a->>'ticketNo')::int) FROM jsonb_array_elements(p_assignment) a) <> v_total
+     OR (SELECT min((a->>'ticketNo')::int) FROM jsonb_array_elements(p_assignment) a) <> 1
+     OR (SELECT max((a->>'ticketNo')::int) FROM jsonb_array_elements(p_assignment) a) <> v_total THEN
+    RAISE EXCEPTION 'INVALID_INPUT: assignment ticket numbers must cover 1..% exactly once', v_total;
+  END IF;
+
   IF p_last_one_prize_id IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM jsonb_array_elements(p_prizes) p WHERE p->>'id' = p_last_one_prize_id
   ) THEN
