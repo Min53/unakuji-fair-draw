@@ -57,8 +57,27 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO unakuji_app, unakuji_admin;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO unakuji_app, unakuji_admin;
 
 -- Take back the default. Nothing below is meaningful until this has run.
-REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
+--
+-- Scoped to this engine's own functions on purpose: extensions install into
+-- public too, and revoking EXECUTE on ALL FUNCTIONS takes pgcrypto's digest()
+-- away from PUBLIC as well — which breaks kuji_reconcile(), since that is what
+-- recomputes the assignment commitment. Looping over kuji_% also means a
+-- function added later is covered by re-running this file, with no list here
+-- to forget to update.
+DO $$
+DECLARE fn record;
+BEGIN
+  FOR fn IN
+    SELECT p.oid::regprocedure AS signature
+      FROM pg_catalog.pg_proc p
+      JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+       AND p.proname LIKE 'kuji\_%'
+  LOOP
+    EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC', fn.signature);
+  END LOOP;
+END
+$$;
 
 -- ---------------------------------------------------------------------------
 -- unakuji_app — what a participant's request can reach.
