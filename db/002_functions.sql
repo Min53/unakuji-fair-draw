@@ -17,6 +17,8 @@ CREATE OR REPLACE FUNCTION kuji_public_box(p_box_id text)
 RETURNS jsonb
 LANGUAGE plpgsql
 STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_box boxes%ROWTYPE;
@@ -59,6 +61,8 @@ $$;
 CREATE OR REPLACE FUNCTION kuji_audit(p_box_id text, p_action text, p_actor text, p_reason text, p_before jsonb, p_after jsonb)
 RETURNS void
 LANGUAGE sql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
   INSERT INTO audit_log (box_id, action, actor, reason, before, after)
   VALUES (p_box_id, p_action, p_actor, p_reason, p_before, p_after);
@@ -81,6 +85,8 @@ CREATE OR REPLACE FUNCTION kuji_create_box(
   p_final_queue_threshold int
 ) RETURNS jsonb
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_total int;
@@ -133,6 +139,8 @@ CREATE OR REPLACE FUNCTION kuji_draw(
   p_payload_hash text
 ) RETURNS jsonb
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_existing purchase_requests%ROWTYPE;
@@ -327,6 +335,8 @@ CREATE OR REPLACE FUNCTION kuji_reserve_tickets(
   p_payload_hash text
 ) RETURNS jsonb
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_existing purchase_requests%ROWTYPE;
@@ -403,6 +413,8 @@ $$;
 CREATE OR REPLACE FUNCTION kuji_release_reservation(p_box_id text, p_holder text, p_ticket_nos int[])
 RETURNS void
 LANGUAGE sql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
   UPDATE tickets
     SET status = 'available', reserved_by = NULL, reserved_until = NULL
@@ -415,6 +427,8 @@ $$;
 CREATE OR REPLACE FUNCTION kuji_expire_reservations(p_box_id text DEFAULT NULL, p_limit int DEFAULT 5000)
 RETURNS int
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_count int;
@@ -446,6 +460,8 @@ CREATE OR REPLACE FUNCTION kuji_issue_entitlement(
   p_max_active_per_holder int DEFAULT NULL
 ) RETURNS jsonb
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_id uuid;
@@ -484,6 +500,8 @@ $$;
 CREATE OR REPLACE FUNCTION kuji_cancel_entitlement(p_entitlement_id uuid, p_actor text, p_reason text)
 RETURNS jsonb
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_entitlement entitlements%ROWTYPE;

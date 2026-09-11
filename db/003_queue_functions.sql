@@ -14,6 +14,8 @@ CREATE OR REPLACE FUNCTION kuji_join_queue(
   p_payload_hash text
 ) RETURNS jsonb
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_existing purchase_requests%ROWTYPE;
@@ -98,6 +100,8 @@ $$;
 CREATE OR REPLACE FUNCTION kuji_promote_next_in_queue(p_box_id text)
 RETURNS void
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_next queue_entries%ROWTYPE;
@@ -116,6 +120,8 @@ $$;
 CREATE OR REPLACE FUNCTION kuji_leave_queue(p_box_id text, p_holder text)
 RETURNS jsonb
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_box boxes%ROWTYPE;
@@ -147,6 +153,8 @@ CREATE OR REPLACE FUNCTION kuji_queue_status(p_box_id text, p_holder text)
 RETURNS jsonb
 LANGUAGE sql
 STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
   SELECT coalesce(
     (SELECT jsonb_build_object(
@@ -168,6 +176,8 @@ $$;
 CREATE OR REPLACE FUNCTION kuji_advance_queue(p_box_id text DEFAULT NULL, p_limit int DEFAULT 1000)
 RETURNS int
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_box_id text;

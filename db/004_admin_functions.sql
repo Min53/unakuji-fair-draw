@@ -6,6 +6,8 @@
 CREATE OR REPLACE FUNCTION kuji_open_box(p_box_id text, p_actor text DEFAULT NULL)
 RETURNS jsonb
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_box boxes%ROWTYPE;
@@ -26,6 +28,8 @@ $$;
 CREATE OR REPLACE FUNCTION kuji_schedule_box_open(p_box_id text, p_opens_at timestamptz, p_actor text DEFAULT NULL)
 RETURNS jsonb
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_box boxes%ROWTYPE;
@@ -53,6 +57,8 @@ $$;
 CREATE OR REPLACE FUNCTION kuji_open_scheduled_boxes()
 RETURNS int
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_count int;
@@ -69,6 +75,8 @@ $$;
 CREATE OR REPLACE FUNCTION kuji_pause_box(p_box_id text, p_actor text, p_reason text)
 RETURNS jsonb
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_box boxes%ROWTYPE;
@@ -89,6 +97,8 @@ $$;
 CREATE OR REPLACE FUNCTION kuji_resume_box(p_box_id text, p_actor text)
 RETURNS jsonb
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_box boxes%ROWTYPE;
@@ -112,6 +122,8 @@ $$;
 CREATE OR REPLACE FUNCTION kuji_cancel_box(p_box_id text, p_actor text, p_reason text, p_allow_real_sales boolean DEFAULT false)
 RETURNS jsonb
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_box boxes%ROWTYPE;
@@ -142,6 +154,8 @@ $$;
 CREATE OR REPLACE FUNCTION kuji_close_box(p_box_id text, p_actor text, p_reason text)
 RETURNS jsonb
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_box boxes%ROWTYPE;
@@ -168,6 +182,8 @@ CREATE OR REPLACE FUNCTION kuji_get_result(p_box_id text, p_holder text, p_reque
 RETURNS jsonb
 LANGUAGE sql
 STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
   SELECT result FROM purchase_requests
   WHERE box_id = p_box_id AND request_id = p_request_id AND holder = p_holder;
@@ -177,6 +193,8 @@ CREATE OR REPLACE FUNCTION kuji_get_holder_results(p_box_id text, p_holder text)
 RETURNS jsonb
 LANGUAGE sql
 STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
   SELECT coalesce(jsonb_agg(jsonb_build_object(
       'ticketNo', ticket_no, 'prizeId', prize_id, 'requestId', request_id, 'drawnAt', to_jsonb(drawn_at)
@@ -192,6 +210,8 @@ CREATE OR REPLACE FUNCTION kuji_reconcile(p_box_id text)
 RETURNS jsonb
 LANGUAGE plpgsql
 STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_box boxes%ROWTYPE;
